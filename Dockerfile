@@ -13,4 +13,6 @@ FROM alpine:3.12
 
 COPY --from=builder /src/bin/sgp /app/sgp
 
-CMD ["/app/sgp"]
+WORKDIR /app
+
+CMD ["./sgp"]
