@@ -35,6 +35,7 @@ var (
 )
 
 func main() {
+	flag.Parse()
 
 	prometheus.MustRegister(latencyGauge)
 	prometheus.MustRegister(downloadGauge)
