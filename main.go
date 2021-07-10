@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	addr = flag.String("b", ":8080", "b is for bind. The address to listen on for HTTP requests.")
+	addr         = flag.String("b", ":8080", "b is for bind. The address to listen on for HTTP requests.")
 	testInterval = flag.Int("i", 60, "i is for interval. The time in seconds between speedtest measurements.")
 	latencyGauge = prometheus.NewGauge(
 		prometheus.GaugeOpts{
@@ -46,20 +46,15 @@ func main() {
 	go func() {
 		for {
 			log.Print("Starting speed test...")
-			user, _ := speedtest.FetchUserInfo()
-			serverList, _ := speedtest.FetchServerList(user)
-			targets, _ := serverList.FindServer([]int{})
-			for _, s := range targets {
-				s.PingTest()
-				s.DownloadTest(false)
-				s.UploadTest(false)
-
-				log.Printf("Latency: %s, Download: %f, Upload: %f\n", s.Latency, s.DLSpeed, s.ULSpeed)
-			
-				latencyGauge.Set(float64(s.Latency))
-				downloadGauge.Set(s.DLSpeed)
-				uploadGauge.Set(s.ULSpeed)
-
+			user, err := speedtest.FetchUserInfo()
+			serverList, err := speedtest.FetchServerList(user)
+			targets, err := serverList.FindServer([]int{})
+			if err == nil {
+				testTargets(targets)
+			} else {
+				latencyGauge.Set(0.0)
+				downloadGauge.Set(0.0)
+				uploadGauge.Set(0.0)
 			}
 			log.Print("Speed test completed, waiting...")
 			time.Sleep(time.Duration(*testInterval) * time.Second)
@@ -67,4 +62,25 @@ func main() {
 	}()
 	log.Printf("Server started at %s", *addr)
 	log.Fatal(http.ListenAndServe(*addr, nil))
+}
+
+func testTargets(targets speedtest.Servers) {
+	for _, s := range targets {
+		err := s.PingTest()
+		err = s.DownloadTest(false)
+		err = s.UploadTest(false)
+
+		log.Printf("Latency: %s, Download: %f, Upload: %f\n", s.Latency, s.DLSpeed, s.ULSpeed)
+
+		if err != nil {
+			log.Printf("Unexpected error: %v", err)
+			latencyGauge.Set(0.0)
+			downloadGauge.Set(0.0)
+			uploadGauge.Set(0.0)
+			continue
+		}
+		latencyGauge.Set(float64(s.Latency))
+		downloadGauge.Set(s.DLSpeed)
+		uploadGauge.Set(s.ULSpeed)
+	}
 }
